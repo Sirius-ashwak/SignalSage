@@ -115,6 +115,11 @@ function IntroSection() {
             </div>
           </div>
         </section>
+        
+        {/* Plans Section for non-logged in users */}
+        <div className="container mx-auto px-4">
+          <PlansSection />
+        </div>
       </main>
     </>
   );
