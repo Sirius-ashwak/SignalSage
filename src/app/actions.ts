@@ -2,15 +2,16 @@
 
 import { answerMobilePlanQuestion } from '@/ai/flows/answer-mobile-plan-question';
 import { predictSignalStrength, PredictSignalStrengthOutput } from '@/ai/flows/predict-signal-strength';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, query, orderBy, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  createdAt?: Timestamp;
+  createdAt?: string;
 }
+
+// Mock in-memory storage (replace with actual database in production)
+const mockChatStorage: Record<string, Message[]> = {};
 
 /**
  * Gets an AI-generated response for a user's question about mobile plans and saves the conversation.
@@ -28,16 +29,31 @@ export async function getAIResponse(question: string, userId: string): Promise<s
   }
 
   try {
+    // Initialize user's chat storage if not exists
+    if (!mockChatStorage[userId]) {
+      mockChatStorage[userId] = [];
+    }
+    
     // Save user message
-    const userMessage: Omit<Message, 'id'> = { role: 'user', content: question, createdAt: serverTimestamp() as Timestamp };
-    await addDoc(collection(db, 'users', userId, 'chats'), userMessage);
+    const userMessage: Message = { 
+      id: `msg-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      role: 'user', 
+      content: question, 
+      createdAt: new Date().toISOString()
+    };
+    mockChatStorage[userId].push(userMessage);
     
     // Get AI response
     const response = await answerMobilePlanQuestion({ question });
     
     // Save AI response
-    const assistantMessage: Omit<Message, 'id'> = { role: 'assistant', content: response.answer, createdAt: serverTimestamp() as Timestamp };
-    await addDoc(collection(db, 'users', userId, 'chats'), assistantMessage);
+    const assistantMessage: Message = { 
+      id: `msg-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      role: 'assistant', 
+      content: response.answer, 
+      createdAt: new Date().toISOString()
+    };
+    mockChatStorage[userId].push(assistantMessage);
 
     return response.answer;
   } catch (error) {
@@ -72,10 +88,8 @@ export async function getChatHistory(userId: string): Promise<Message[]> {
     return [];
   }
   try {
-    const q = query(collection(db, 'users', userId, 'chats'), orderBy('createdAt', 'asc'));
-    const querySnapshot = await getDocs(q);
-    const history: Message[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message));
-    return history;
+    // Return user's chat history from mock storage
+    return mockChatStorage[userId] || [];
   } catch (error) {
     console.error("Error fetching chat history:", error);
     return [];

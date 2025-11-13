@@ -1,11 +1,15 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+
+interface MockUser {
+  uid: string;
+  email: string;
+  displayName?: string;
+}
 
 interface AuthContextType {
-  user: User | null;
+  user: MockUser | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<any>;
   signup: (email: string, pass: string) => Promise<any>;
@@ -20,29 +24,79 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
 });
 
+// Mock user storage using localStorage
+const STORAGE_KEY = 'mock_auth_user';
+const USERS_KEY = 'mock_auth_users';
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<MockUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    // Check for existing user session
+    const storedUser = localStorage.getItem(STORAGE_KEY);
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
   }, []);
   
-  const login = (email: string, pass: string) => {
-    return signInWithEmailAndPassword(auth, email, pass);
-  }
+  const login = async (email: string, pass: string) => {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Get stored users
+    const usersStr = localStorage.getItem(USERS_KEY);
+    const users: Record<string, { password: string; uid: string }> = usersStr ? JSON.parse(usersStr) : {};
+    
+    // Check if user exists and password matches
+    if (users[email] && users[email].password === pass) {
+      const mockUser: MockUser = {
+        uid: users[email].uid,
+        email,
+        displayName: email.split('@')[0],
+      };
+      setUser(mockUser);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mockUser));
+      return { user: mockUser };
+    } else {
+      throw new Error('Invalid email or password');
+    }
+  };
 
-  const signup = (email: string, pass: string) => {
-    return createUserWithEmailAndPassword(auth, email, pass);
-  }
+  const signup = async (email: string, pass: string) => {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Get stored users
+    const usersStr = localStorage.getItem(USERS_KEY);
+    const users: Record<string, { password: string; uid: string }> = usersStr ? JSON.parse(usersStr) : {};
+    
+    // Check if user already exists
+    if (users[email]) {
+      throw new Error('Email already in use');
+    }
+    
+    // Create new user
+    const mockUser: MockUser = {
+      uid: `mock-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      email,
+      displayName: email.split('@')[0],
+    };
+    
+    // Store user credentials
+    users[email] = { password: pass, uid: mockUser.uid };
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    
+    // Set as current user
+    setUser(mockUser);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(mockUser));
+    return { user: mockUser };
+  };
 
-  const logout = () => {
-    return signOut(auth);
+  const logout = async () => {
+    setUser(null);
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   const value = {
